@@ -6,6 +6,9 @@ a bordo murieron durante el desastre. Del terrible accidente se desprenden dos t
 - 💧La distinción de clases sociales (pobres y ricos)
 - 🔥El protocolo de “Mujeres y niños primero”
 
+## 🚩Algoritmo utilizado: 
+- ANÁLISIS DE CORRESPONDENCIA
+
 ## 🚩Objetivo: 
 Una amante de la película Titanic producida por James Cameron, Crystal, busca responder dos preguntas:
 

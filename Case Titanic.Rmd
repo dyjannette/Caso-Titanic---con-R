@@ -1,0 +1,359 @@
+---
+title: "Resolución del Caso Titanic"
+author: "Autor: Dyjannette Alva Quiroz"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    collapsed: false
+    smooth_scroll: false
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library("dplyr")
+library("oilabs")
+library("tidyverse")
+library("RColorBrewer") 
+library("gridExtra")  
+require("knitr")
+library("xlsx")
+library("funModeling")
+library("nortest") 
+require(nortest)
+library("ggplot2")
+library("gplots")
+library("PerformanceAnalytics")
+library("ggcorrplot")
+library("gridExtra") 
+library(FactoMineR)
+library(factoextra)
+library(ca)
+library(ade4)
+library(ExPosition)
+library(Rcpp)
+library(InPosition)
+
+```
+
+El caso está contextualizado en el hundimiento del Titanic del cual cerca de 1,500 pasajeros a bordo murieron durante el desastre. Del terrible accidente se desprenden dos temáticas importantes:
+
+- La distinción de clases sociales (pobres y ricos) 
+- El protocolo de "Mujeres y niños primero" 
+
+Una amante de la película Titanic producida por James Cameron, Crystal, busca responder dos preguntas:
+
+- **¿El protocolo de "Mujeres y niños primero" realmente fue seguido?**
+
+- **¿Acaso la supervivencia de los pasajeros estaba ligada a su clase social?**
+
+En este análisis se buscará resolver dichas preguntas.
+
+# Lectura de Datos
+```{r, message=FALSE}
+
+datos <- read.xlsx("Titanic.xlsx", sheetName = "Titanic")
+tibble(datos)
+```
+Renombrando las variables
+```{r echo=T ,eval=T, warning=F,message=T}
+names(datos) <- c("ClasedePasajero","Sobrevivio","Sexo","Edad","AdultoNiño","Tarifa","PuertoEmbarque","BoteSalvavida","CategoriaEdad")
+
+```
+Visualizando tipos de datos, quantiles y porcentajes de ceros, nulos e infinitos; además de valores únicos. 
+
+```{r echo=T ,eval=T, warning=F,message=T}
+attach(datos)
+df_status(datos)
+```
+Si analizamos la variable "Edad" hay 263 personas que no consignaron su edad, va de la mano con la variable "Categoría Edad" ya que están ligadas.
+Mientras que en la variable "Tarifa" solo hay una persona que no declaró su tarifa.
+Además, como ya se conoce, no todos los pasajeros abordaron un bote salvavidas por lo que la cantidad de nulos representa cerca del 69%.  
+
+
+Procedemos entonces a actualizar las variables a nivel de factor
+
+
+## Factorización {.tabset}
+
+### Variable: ClasedePasajero
+
+```{r echo=T ,eval=T, warning=F,message=T}
+datos$ClasedePasajero <- as.factor(datos$ClasedePasajero)
+levels(datos$ClasedePasajero) <- c("Primera Clase","Segunda Clase","Tercera Clase")
+table(datos$ClasedePasajero)
+```
+### Variable: Sobrevivio
+```{r echo=T ,eval=T, warning=F,message=T}
+datos$Sobrevivio <- as.factor(datos$Sobrevivio)
+levels(datos$Sobrevivio) <- c("No sobrevivio","Si sobrevivio")
+table(datos$Sobrevivio)
+```
+
+### Variable: Sexo
+```{r echo=T ,eval=T, warning=F,message=T}
+datos$Sexo <- as.factor(datos$Sexo)
+levels(datos$Sexo) <- c("Hombre","Mujer")
+table(datos$Sexo)
+```
+
+### Variable: CategoriaEdad
+```{r echo=T ,eval=T, warning=F,message=T}
+datos$CategoriaEdad <- as.factor(datos$CategoriaEdad)
+levels(datos$CategoriaEdad) <- c("0 a 5 años","6 a 18 años","19 a 39 años","40 a 59 años","mayores a 60")
+table(datos$CategoriaEdad)
+```
+
+### Variable: AdultoNiño
+```{r echo=T ,eval=T, warning=F,message=T}
+datos$AdultoNiño <- as.factor(datos$AdultoNiño)
+levels(datos$AdultoNiño) <- c("Niña o niño","Adulto")
+table(datos$AdultoNiño)
+```
+
+### Variable: PuertoEmbarque
+```{r echo=T ,eval=T, warning=F,message=T}
+datos$PuertoEmbarque <- as.factor(datos$PuertoEmbarque)
+levels(datos$PuertoEmbarque) <- c("Cherbourg","Queenstown","Southampton")
+table(datos$PuertoEmbarque)
+```
+## {-}
+
+
+## ¿El protocolo de "Mujeres y niños primero" realmente fue seguido?
+
+*Según la Convención sobre los Derechos del Niño, se entiende por niño o niña a aquel ser humano que es menor de 18 años de edad por lo que a los niños les corresponderían las categorías de edad "0 a 5 años" y "6 a 18 años".*
+
+Hipótesis: 
+Si el protocolo de "mujeres y niños primero" fue respetado este se vería evidenciado en una mayor cantidad de mujeres y niños que sobrevivieron frente al total de sobrevivientes. 
+
+### Analizando el caso de las mujeres
+
+```{r Mujeres, eval=T, echo=T, message=TRUE, warning=FALSE}
+datosFiltrados <- datos %>%
+  filter(datos$Sobrevivio == "Si sobrevivio")
+
+dataG1 <- datosFiltrados %>%
+            group_by (Sexo) %>%
+               summarise(Cantidad = 100*n()/nrow(datosFiltrados))
+datosFiltrados %>%
+            group_by (Sexo) %>%
+               summarise(Cantidad = n())
+
+G1 <- ggplot(data = dataG1, aes(x="",y=Cantidad, fill=Sexo)) + 
+  geom_col(color = "black") +
+  geom_text(aes(label = paste0(Cantidad,"%")), 
+            color = "black",
+            position = position_stack(vjust = 0.5),
+            show.legend = FALSE) +
+  coord_polar(theta ="y") + 
+  ggtitle ("Hombres vs Mujeres sobrevivientes") +
+  theme(plot.title = element_text(hjust = 0.5,face="bold"))+
+  scale_fill_manual(values = c("gray73", "orchid1"))+
+  theme_void()
+
+
+dataG1.1 <- datos %>%
+            group_by (Sexo) %>%
+               summarise(Cantidad = 100*n()/nrow(datos))
+
+G1.1 <- ggplot(data = dataG1.1, aes(x="",y=Cantidad, fill=Sexo)) + 
+  geom_col(color = "black") +
+  geom_text(aes(label = paste0(round(Cantidad,2),"%")), 
+            color = "black",
+            position = position_stack(vjust = 0.5),
+            show.legend = FALSE) +
+  coord_polar(theta ="y") + 
+  ggtitle ("Hombres vs Mujeres a bordo") +
+  theme(plot.title = element_text(hjust = 0.5,face="bold"))+
+  scale_fill_manual(values = c("gray73", "orchid1"))+
+  theme_void()
+
+grid.arrange(G1.1,G1,ncol=2, nrow=1)
+
+```
+
+#### Conclusión
+
+**Vemos que el porcentaje de mujeres a bordo es menor que el de varones pero si vemos el porcentaje de sobrevivientes, las mujeres han sobrevivido en mayor proporción por lo que sí se estaría respetando el protocolo de mujeres primero.**
+
+
+
+### Analizando el caso de los niños
+
+```{r echo=T ,eval=T, warning=F,message=T}
+dataG2 <- datosFiltrados %>%
+            group_by (AdultoNiño) %>%
+               summarise(Cantidad = 100*n()/nrow(datosFiltrados))
+
+datosFiltrados %>%
+            group_by (AdultoNiño) %>%
+               summarise(Cantidad = n())
+
+G2 <- ggplot(data = dataG2, aes(x="",y=Cantidad, fill=AdultoNiño)) + 
+  geom_col(color = "black") +
+  geom_text(aes(label = paste0(Cantidad,"%")), 
+            color = "black",
+            position = position_stack(vjust = 0.5),
+            show.legend = FALSE) +
+  coord_polar(theta ="y") + 
+  ggtitle ("Niños vs adultos sobrevivientes") +
+  scale_fill_manual(values = c("salmon1", "gray73"))+
+  theme_void()
+
+dataG2.2 <- datos %>%
+            group_by (AdultoNiño) %>%
+               summarise(Cantidad = 100*n()/nrow(datos))
+
+G2.2 <- ggplot(data = dataG2.2, aes(x="",y=Cantidad, fill=AdultoNiño)) + 
+  geom_col(color = "black") +
+  geom_text(aes(label = paste0(round(Cantidad,2),"%")), 
+            color = "black",
+            position = position_stack(vjust = 0.5),
+            show.legend = FALSE) +
+  coord_polar(theta ="y") + 
+  ggtitle ("Niños vs adultos a bordo") +
+  theme(plot.title = element_text(hjust = 0.5,face="bold"))+
+  scale_fill_manual(values = c("salmon1","gray73"))+
+  theme_void()
+
+grid.arrange(G2.2,G2,ncol=2, nrow=1)
+
+```
+
+En el caso de los niños, solo el 14.74% de los pasajeros a bordo eran niños por lo que poseen una menor relación contra los adultos. 
+Pero si comparamos la cantidad de niños sobrevivientes vs niños no sobrevivientes y los adultos sobrevivientes vs adultos no sobrevivientes entonces veremos otra información. 
+
+Entonces, ¿qué cantidad de niños sobrevivió? y ¿qué cantidad de adultos ha sobrevivido?
+
+```{r echo=T ,eval=T, warning=F,message=T}
+datosFiltradosAdultos <- datos %>%
+  filter(datos$AdultoNiño == "Adulto")
+
+dataG3 <- datosFiltradosAdultos %>%
+            group_by (Sobrevivio) %>%
+               summarise(Cantidad = n())
+
+G3 <- ggplot(data = dataG3, aes(x="",y=Cantidad, fill=Sobrevivio)) + 
+  geom_col(color = "black") +
+  geom_text(aes(label = Cantidad), 
+            color = "black",
+            position = position_stack(vjust = 0.5),
+            show.legend = FALSE) +
+  coord_polar(theta ="y") + 
+  ggtitle ("Adultos sob vs no sobrevivientes") +
+  theme(plot.title = element_text(hjust = 0.5,face="bold"))+
+  scale_fill_manual(values = c("gray73","royalblue1"))+
+  theme_void()
+
+datosFiltradosNiños <- datos %>%
+  filter(datos$AdultoNiño == "Niña o niño")
+
+dataG4 <- datosFiltradosNiños %>%
+            group_by (Sobrevivio) %>%
+               summarise(Cantidad = n())
+
+G4 <- ggplot(data = dataG4, aes(x="",y=Cantidad, fill=Sobrevivio)) + 
+  geom_col(color = "black") +
+  geom_text(aes(label = Cantidad), 
+            color = "black",
+            position = position_stack(vjust = 0.5),
+            show.legend = FALSE) +
+  coord_polar(theta ="y") + 
+  ggtitle ("Niños sob vs no sobrevivientes") +
+  theme(plot.title = element_text(hjust = 0.5,face="bold"))+
+  scale_fill_manual(values = c("gray73","paleturquoise1"))+
+  theme_void()
+
+grid.arrange(G3,G4,ncol=2, nrow=1)
+
+```
+
+#### Conclusión
+
+**Con los 2 primeros gráficos anteriores vemos que se priorizó salvar casi la mitad de los niños a bordo mientras que los adultos sobrevivientes solo representan aproximadamente el 36% lo que afirma que sí se respetó el protocolo de niños primero.**
+
+
+## La supervivencia de los pasajeros y la clase social
+
+En este caso, nos encontramos con 2 variables cualitativas:
+- Variable sobrevivió: si el pasajero sobrevivió o no.
+- La clase de pasajero: si el pasajero se ubica en 1ra, 2da o 3ra clase.
+
+Entonces la pregunta que buscamos resolver es la siguiente:
+**¿Existe relación entre la supervivencia del pasajero y su clase social?**
+
+Para ello, se utilizará el método de Análisis de Contingencia
+
+### Representación con esferas
+```{r echo=T ,eval=T, warning=F,message=T}
+dt <- table(datos$ClasedePasajero, datos$Sobrevivio)
+
+balloonplot (dt, main = "Supervivencia por clase social", xlab="",ylab="",label=FALSE, show.margins=FALSE)
+
+```
+
+La representación visual con esferas muestra diferencias entre el tamaño de las bolitas lo que puede indicar una asociación entre la supervivencia y la clase social pero debemos comprobar esta información con métodos estadísticos (pruebas de hipótesis).
+
+### Tabla de perfiles:cálculo de perfiles de fila y columna 
+
+Perfil de fila
+```{r echo=T ,eval=T, warning=F,message=T}
+dt.row = dt/rowSums(dt)
+mass.row = colMeans(dt.row)
+Perfil_fila=rbind(dt.row,mass.row)
+Perfil_fila
+```
+Vemos que la probabilidad de No sobrevivir es de 56.53% y la de sobrevivir es de 43.46%. Hasta el momento son distintas
+
+
+Perfil de columna
+```{r echo=T ,eval=T, warning=F,message=T}
+dt.col = t(dt)/colSums(dt)
+mass.col = rowMeans(t(dt.col))
+Perfil_col=rbind(dt.col,mass.col)
+Perfil_col
+```
+
+Vemos que la probabilidad de pertenecer a la primera clase es de 27.6%, a la 2da clase es de 21.66% y a la 3ra clase es más alta, 50.73%. En este caso también las probabilidades son diferenciadas.
+
+### Prueba de Independencia
+Para interpretar el análisis de correspondencia, el primer paso es evaluar si existe una dependencia significativa entre las filas y las columnas.
+
+Hipótesis
+
+- H0: Se asume que **no** existe asociación entre la supervivencia y la clase social 
+- H1: Se sume que existe asociación entre la supervivencia y la clase social 
+
+```{r echo=T ,eval=T, warning=F,message=T}
+chisq = chisq.test(dt)
+chisq
+```
+
+Debido a que el valor de p es menor que el 0.05 (α), la decisión es rechazar la hipótesis nula. Entonces, con base en la prueba de Chi-Cuadrado, se puede concluir que existe asociación entre la clase social y la supervivencia con el nivel de significancia del 0.05.
+
+### Análisis de Correspondencia
+
+Este análisis brinda un modo visual de representar los datos.
+
+```{r ,message=FALSE}
+res.ca = CA(dt,graph = TRUE)
+print(res.ca)
+```
+
+Autovalores
+```{r, message=FALSE}
+eig.val = get_eigenvalue(res.ca)
+eig.val
+
+```
+
+```
+Como vemos en la parte de arriba solo existe **1 dimensión** por lo que no será posible graficar nada. 
+```
+#### Conclusión
+
+**Según la prueba de hipótesis realizada en la parte de arriba, se afirma que existe asociación entre la clase social y la supervivencia con un nivel de significancia del 0.05.**
